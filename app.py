@@ -3,126 +3,132 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(page_title="CSMVS Heritage Survey Dashboard", page_icon="🏛️", layout="wide")
+st.set_page_config(page_title="CSMVS Heritage Visitor Intelligence", page_icon="🏛️", layout="wide")
 
-FILE = "CSMVS_Heritage_Survey_Responses.csv"
-df = pd.read_csv(FILE)
-df.columns = df.columns.str.strip()
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
+html, body, [class*="css"] {font-family:'DM Sans',sans-serif;}
+.stApp {background:linear-gradient(180deg,#faf7f1,#f2ede4);}
+.block-container {max-width:1450px;padding-top:1.2rem;}
+.hero {background:linear-gradient(135deg,#24150f,#54301e,#81502e);padding:32px;border-radius:24px;color:white;margin-bottom:22px;box-shadow:0 12px 35px rgba(63,39,25,.18);}
+.hero h1 {font-family:'Playfair Display',serif;font-size:38px;margin:0 0 6px;}
+.hero p {color:#eadccf;margin:0;}
+.eyebrow {color:#e7b86a;font-weight:700;letter-spacing:2px;font-size:12px;text-transform:uppercase;margin-bottom:7px;}
+.kpi {background:white;border:1px solid #e6ddd0;border-radius:18px;padding:18px 20px;box-shadow:0 5px 18px rgba(53,37,25,.06);}
+.kpi-label {color:#77695f;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;}
+.kpi-value {color:#342117;font-size:28px;font-weight:700;margin-top:5px;}
+.kpi-note {color:#9a6a39;font-size:12px;margin-top:4px;}
+.section-title {font-family:'Playfair Display',serif;font-size:25px;color:#332017;margin:22px 0 8px;}
+div[data-testid="stSidebar"] {background:#24150f;}
+div[data-testid="stSidebar"] * {color:#f5eee7 !important;}
+.footer {text-align:center;color:#7d6d60;font-size:12px;padding:25px 0 5px;}
+</style>
+""", unsafe_allow_html=True)
 
-st.title("🏛️ CSMVS Heritage Survey Dashboard")
-st.markdown("### Visitor Behaviour, Experience & Tourism Analysis")
-st.divider()
+FILE="CSMVS_Heritage_Survey_Responses.csv"
+df=pd.read_csv(FILE)
+df.columns=df.columns.str.strip()
 
-st.sidebar.header("🔎 Filters")
+def col(*phrases):
+    for p in phrases:
+        for c in df.columns:
+            if p.lower() in c.lower(): return c
+    return None
 
-def options(col):
-    return sorted(df[col].dropna().astype(str).unique()) if col in df.columns else []
+def counts(s,n=10):
+    if s is None: return pd.DataFrame()
+    d=s.dropna().astype(str).str.strip().replace("","Unknown").value_counts().head(n).reset_index()
+    d.columns=["Category","Visitors"]; return d
 
-age_col = "Age Group"
-gender_col = "Gender"
-tourist_col = "Are you an Indian or International Tourist?"
-first_col = "Is it your first visit to the museum?"
+def bar(s,title,h=False,n=10):
+    d=counts(s,n)
+    if d.empty: return
+    fig=px.bar(d,x="Visitors",y="Category",orientation="h",text="Visitors") if h else px.bar(d,x="Category",y="Visitors",text="Visitors")
+    fig.update_layout(title=title,height=350,margin=dict(l=10,r=10,t=55,b=10),paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)")
+    fig.update_traces(textposition="outside")
+    st.plotly_chart(fig,use_container_width=True)
 
-selected_age = st.sidebar.multiselect("Age Group", options(age_col), default=options(age_col))
-selected_gender = st.sidebar.multiselect("Gender", options(gender_col), default=options(gender_col))
-selected_tourist = st.sidebar.multiselect("Tourist Type", options(tourist_col), default=options(tourist_col))
-selected_first = st.sidebar.multiselect("First Visit?", options(first_col), default=options(first_col))
+def donut(s,title):
+    d=counts(s,8)
+    if d.empty: return
+    fig=px.pie(d,names="Category",values="Visitors",hole=.6,title=title)
+    fig.update_layout(height=340,margin=dict(l=10,r=10,t=55,b=10),paper_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig,use_container_width=True)
 
-filtered = df.copy()
-if selected_age:
-    filtered = filtered[filtered[age_col].astype(str).isin(selected_age)]
-if selected_gender:
-    filtered = filtered[filtered[gender_col].astype(str).isin(selected_gender)]
-if selected_tourist:
-    filtered = filtered[filtered[tourist_col].astype(str).isin(selected_tourist)]
-if selected_first:
-    filtered = filtered[filtered[first_col].astype(str).isin(selected_first)]
+age=col("age group"); gender=col("gender")
+tourist=col("indian or international tourist","international tourist")
+first=col("first visit to the museum")
+reason=col("main reason for visiting")
+interest=col("aspects of the museum interest")
+crowd=col("excessive crowding")
+experience=col("visit experience do you prefer")
+issue=col("what issues did you face")
+appcol=col("tourist-planning app","tourist planning app")
+score=col("score"); group=col("how many people are in your group")
+attractions=col("nearby attractions")
 
-def numeric_mean(col):
-    if col in filtered.columns:
-        return pd.to_numeric(filtered[col], errors="coerce").mean()
-    return 0
+st.markdown("""
+<div class="hero">
+<div class="eyebrow">Cultural Heritage • Visitor Intelligence</div>
+<h1>CSMVS Heritage Visitor Dashboard</h1>
+<p>Visitor profiles, motivations, experiences, crowding, attractions and digital-tourism needs.</p>
+</div>
+""",unsafe_allow_html=True)
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("👥 Visitors", len(filtered))
-c2.metric("⭐ Average Score", f"{numeric_mean('Score'):.2f}" if 'Score' in filtered.columns else "N/A")
-c3.metric("👨‍👩‍👧 Avg. Group Size", f"{numeric_mean('How many people are in your group?'):.2f}" if 'How many people are in your group?' in filtered.columns else "N/A")
-c4.metric("📊 Total Responses", len(df))
+st.sidebar.markdown("## 🏛️ CSMVS")
+st.sidebar.caption("Heritage Visitor Intelligence")
+st.sidebar.divider()
 
-st.divider()
+filtered=df.copy()
+for label,c in [("Age Group",age),("Gender",gender),("Tourist Type",tourist),("First Visit",first)]:
+    if c:
+        opts=sorted(df[c].dropna().astype(str).unique())
+        chosen=st.sidebar.multiselect(label,opts,default=opts)
+        if chosen: filtered=filtered[filtered[c].astype(str).isin(chosen)]
 
-def bar_chart(col, title, n=10, horizontal=False):
-    if col not in filtered.columns:
-        return
-    d = filtered[col].dropna().astype(str).value_counts().head(n).reset_index()
-    d.columns = ["Category", "Visitors"]
-    if horizontal:
-        fig = px.bar(d, x="Visitors", y="Category", orientation="h", title=title, text="Visitors")
-    else:
-        fig = px.bar(d, x="Category", y="Visitors", title=title, text="Visitors")
-    st.plotly_chart(fig, use_container_width=True)
+avg_score=pd.to_numeric(filtered[score],errors="coerce").mean() if score else None
+avg_group=pd.to_numeric(filtered[group],errors="coerce").mean() if group else None
 
-def pie_chart(col, title):
-    if col not in filtered.columns:
-        return
-    d = filtered[col].dropna().astype(str).value_counts().reset_index()
-    d.columns = ["Category", "Visitors"]
-    fig = px.pie(d, names="Category", values="Visitors", title=title, hole=.4)
-    st.plotly_chart(fig, use_container_width=True)
+k1,k2,k3,k4=st.columns(4)
+for container,label,value,note in [
+    (k1,"Visitors in view",f"{len(filtered):,}","Filtered responses"),
+    (k2,"Average score",f"⭐ {avg_score:.1f}" if pd.notna(avg_score) else "—","Available score data"),
+    (k3,"Average group size",f"👥 {avg_group:.1f}" if pd.notna(avg_group) else "—","People per group"),
+    (k4,"Survey records",f"📋 {len(df):,}","Complete dataset")]:
+    with container:
+        st.markdown(f'<div class="kpi"><div class="kpi-label">{label}</div><div class="kpi-value">{value}</div><div class="kpi-note">{note}</div></div>',unsafe_allow_html=True)
 
-st.header("👥 Visitor Demographics")
-a, b = st.columns(2)
-with a:
-    bar_chart(age_col, "Visitors by Age Group")
-with b:
-    pie_chart(gender_col, "Gender Distribution")
+st.markdown('<div class="section-title">Visitor Snapshot</div>',unsafe_allow_html=True)
+a,b=st.columns(2)
+with a: bar(filtered[age],"Age profile") if age else None
+with b: donut(filtered[gender],"Gender distribution") if gender else None
+a,b=st.columns(2)
+with a: donut(filtered[tourist],"Tourist composition") if tourist else None
+with b: bar(filtered[first],"First-time vs repeat visitors") if first else None
 
-st.header("🌍 Tourist Profile")
-a, b = st.columns(2)
-with a:
-    pie_chart(tourist_col, "Indian vs International Tourists")
-with b:
-    bar_chart(first_col, "First-Time vs Repeat Visitors")
+st.markdown('<div class="section-title">Why People Visit</div>',unsafe_allow_html=True)
+if reason: bar(filtered[reason],"Top visitor motivations",True,10)
 
-st.header("🎯 Visit Analysis")
-reason_col = "What was your main reason for visiting?"
-bar_chart(reason_col, "Top Reasons for Visiting", 10, True)
+st.markdown('<div class="section-title">Museum Experience</div>',unsafe_allow_html=True)
+a,b=st.columns(2)
+with a: bar(filtered[interest],"Most interesting museum aspects",True,10) if interest else None
+with b: bar(filtered[experience],"Preferred visit experience",True,10) if experience else None
+if crowd: donut(filtered[crowd],"Crowding experience")
 
-interest_col = "Which aspects of the museum interest you the most?"
-bar_chart(interest_col, "Most Interesting Museum Aspects", 10, True)
+st.markdown('<div class="section-title">Tourism & Nearby Attractions</div>',unsafe_allow_html=True)
+if attractions:
+    s=filtered[attractions].dropna().astype(str).str.split(",").explode().str.strip()
+    bar(s,"Attractions visitors want to explore",True,12)
 
-st.header("👥 Crowding & Experience")
-crowd_col = "Did you experience excessive crowding?"
-pie_chart(crowd_col, "Visitors Experiencing Excessive Crowding")
+st.markdown('<div class="section-title">Pain Points & Digital Needs</div>',unsafe_allow_html=True)
+a,b=st.columns(2)
+with a: bar(filtered[issue],"Common visitor issues",True,10) if issue else None
+with b: bar(filtered[appcol],"What visitors want from a tourist app",True,10) if appcol else None
 
-experience_col = "What type of visit experience do you prefer?"
-bar_chart(experience_col, "Preferred Visit Experience", 10, True)
+with st.expander("📊 Open detailed visitor data"):
+    st.dataframe(filtered,use_container_width=True,height=420)
+    st.download_button("⬇️ Download filtered CSV",filtered.to_csv(index=False),"CSMVS_filtered_data.csv","text/csv")
 
-st.header("📍 Nearby Attractions")
-attraction_col = "Which nearby attractions would you be interested in visiting?  \n(Select all that you would be interested in visiting)"
-if attraction_col in filtered.columns:
-    d = (filtered[attraction_col].dropna().astype(str).str.split(",").explode().str.strip().value_counts().head(10).reset_index())
-    d.columns = ["Attraction", "Visitors"]
-    fig = px.bar(d, x="Visitors", y="Attraction", orientation="h", title="Popular Nearby Attractions", text="Visitors")
-    st.plotly_chart(fig, use_container_width=True)
+st.markdown('<div class="footer">CSMVS Heritage Survey • Visitor Behaviour & Tourism Analysis<br>Academic Data-Visualisation Dashboard</div>',unsafe_allow_html=True)
 
-st.header("⚠️ Visitor Issues")
-issue_col = "What issues did you face today?"
-bar_chart(issue_col, "Most Common Visitor Issues", 10, True)
-
-st.header("📱 Tourist-Planning App Requirements")
-app_col = "If a tourist-planning app were available, what would you want it to tell you?"
-bar_chart(app_col, "Information Visitors Want in a Tourist App", 10, True)
-
-st.header("📋 Visitor Data")
-st.dataframe(filtered, use_container_width=True, height=400)
-
-st.download_button(
-    "⬇️ Download Filtered Data",
-    filtered.to_csv(index=False),
-    "CSMVS_filtered_data.csv",
-    "text/csv"
-)
-
-st.divider()
-st.caption("CSMVS Heritage Survey | Visitor Behaviour & Tourism Analysis Dashboard")
